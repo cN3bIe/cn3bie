@@ -25,11 +25,11 @@ function get_the_ID(){
 }
 
 function language_attributes(){
-	echo '';
+	echo 'en-EN';
 }
 function bloginfo( $type ){
 	switch( $type ){
-		case 'charset':echo 'UTF-8';
+		case 'charset': echo 'UTF-8';
 		default: echo '';
 	}
 }
