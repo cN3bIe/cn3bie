@@ -32,6 +32,7 @@ class FF{
 	static protected $DOCUMENT = null;
 	static protected $DOCUMENTS = null;
 	static protected $CHILDREN = null;
+	static protected $recipient = [];
 	protected function __construct($fields){
 		// $this->DB = &OpenDM('content', 'Common.Document'); // Подключаем местну. ORM
 		$this->fields = $fields;
@@ -377,12 +378,17 @@ class FF{
 		if(!$result=OpenDM('content', 'Common.Document')->Update($params['journal'],$params['path'],$fields)) return self::AppendError('result');
 		return self::IsNotError($result);
 	}
+	static public function setRecipient( $recipient ){
+		return self::$recipient = $recipient;
+	}
 	/*
 	Отправка почты пользователской части
 	Шаблон сообщения, Тема сообщения, кому(Майл, Имя), поля для шаблона
 	*/
-	public function SendUserMail($MsgSubj,$recipient,$files = [] ,$DATA_files = null){
+	public function SendUserMail($MsgSubj,$recipient = '',$files = [] ,$DATA_files = null){
 		if( !self::IsNotError() ) return $this;
+		if( !$recipient || is_array( $recipient ) && !count( $recipient ) ) $recipient = self::$recipient;
+
 		$body = ''.
 			"<!doctype html>"
 				."<html>"
@@ -406,8 +412,9 @@ class FF{
 		}else $mail = Mail::send($recipient,$MsgSubj,$body,$from);
 		return $this;
 	}
-	public function SendAdminMail($MsgSubj,$recipient,$DATA_files = null){
+	public function SendAdminMail($MsgSubj,$recipient = '',$DATA_files = null){
 		if( !self::IsNotError() ) return $this;
+		if( !$recipient || is_array( $recipient ) && !count( $recipient ) ) $recipient = self::$recipient;
 		$body = ''.
 			"<!doctype html>"
 				."<html>"
@@ -440,15 +447,11 @@ class FF{
 		}else $mail = Mail::send($recipient,$MsgSubj,$body,$from);
 		return $this;
 	}
-	public function response($success = 'OK', $error = 'ERROR'){
+	public function response($success = 'OK', $error = ''){
 		if( self::IsNotError() ) die(json_encode( $success ));
 		else{
-			// echo $error;
-			// echo '<!--';
-			// self::BrowseError();
-			// self::info();
-			// echo '-->';
-			die(json_encode( self::GetError() ));
+			if( $error ) die(json_encode( $error ));
+			else die(json_encode( self::GetError() ));
 		}
 	}
 	/*
@@ -456,22 +459,16 @@ class FF{
 	Доступ, Шаблон сообщения, Тема сообщения, поля для шаблона
 	*/
 	public function SendLeadBitrix( $title ){
-		define('CRM_HOST', 'ilrusstroy.bitrix24.ru'); // your CRM domain name
-		define('CRM_PORT', '443'); // CRM server port
-		define('CRM_PATH', '/crm/configs/import/lead.php'); // CRM server REST service path
+		define('CRM_HOST', 'ilrusstroy.bitrix24.ru');
+		define('CRM_PORT', '443');
+		define('CRM_PATH', '/crm/configs/import/lead.php');
 
-		// CRM server authorization data
-		define('CRM_LOGIN', 'ilrusstroy-bot@bitrix24.ru'); // login of a CRM user able to manage leads
-		define('CRM_PASSWORD', 'qwerty'); // password of a CRM user
-		// OR you can send special authorization hash which is sent by server after first successful connection with login and password
-		//define('CRM_AUTH', 'e54ec19f0c5f092ea11145b80f465e1a'); // authorization hash
+		define('CRM_LOGIN', 'ilrusstroy-bot@bitrix24.ru');
+		define('CRM_PASSWORD', 'qwerty');
 
-		/********************************************************************************************/
-
-		// POST processing
 		if ($_SERVER['REQUEST_METHOD'] == 'POST'){
-			// $leadData = $_POST['DATA'];
-			// get lead data from the form
+
+
 			$postData = [
 				'TITLE' => $title,
 				'SOURCE_ID' => 'WEB',
@@ -482,22 +479,20 @@ class FF{
 				endforeach;
 			endif;
 
-			// append authorization data
 			if ( defined('CRM_AUTH') ) $postData['AUTH'] = CRM_AUTH;
 			else {
 				$postData['LOGIN'] = CRM_LOGIN;
 				$postData['PASSWORD'] = CRM_PASSWORD;
 			}
 
-			// open socket to CRM
 			$fp = fsockopen("ssl://".CRM_HOST, CRM_PORT, $errno, $errstr, 30);
 			if ($fp) {
-				// prepare POST data
+
 				$strPostData = '';
 				foreach ($postData as $key => $value)
 					$strPostData .= ($strPostData == '' ? '' : '&').$key.'='.urlencode($value);
 
-				// prepare POST headers
+
 				$str = "POST ".CRM_PATH." HTTP/1.0\r\n";
 				$str .= "Host: ".CRM_HOST."\r\n";
 				$str .= "Content-Type: application/x-www-form-urlencoded\r\n";
@@ -506,15 +501,15 @@ class FF{
 
 				$str .= $strPostData;
 
-				// send POST to CRM
+
 				fwrite($fp, $str);
 
-				// get CRM headers
+
 				$result = '';
 				while (!feof($fp)) $result .= fgets($fp, 128);
 				fclose($fp);
 
-				// cut response headers
+
 				$response = explode("\r\n\r\n", $result);
 
 				$output = '<pre>'.print_r($response[1], 1).'</pre>';
@@ -523,10 +518,6 @@ class FF{
 			}
 		} else  $output = '';
 
-		// if(!count($fields)) return self::AppendError('send.admin.mail.not.fields');
-		// }else self::AppendError('template.admin.not.exist');
-		// if($send_result !== true) self::AppendError('send.admin',$send_result);
-		// return self::IsNotError();
 		return $this;
 	}
 }
